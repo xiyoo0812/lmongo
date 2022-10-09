@@ -23,7 +23,14 @@ namespace lmongo {
         int reply(lua_State* L, const char* buf, size_t len) {
             m_buffer->reset();
             m_buffer->push_data((uint8_t*)buf, len);
-            return reply_slice(L, m_buffer->get_slice());
+            slice* slice = m_buffer->get_slice(); 
+            int retn = reply_slice(L, slice);
+            if (retn > 0) {
+                const char* data = (const char*)slice->data(&len);
+                lua_pushlstring(L, data, len);
+                return retn + 1;
+            }
+            return retn;
         }
 
         int reply_slice(lua_State* L, slice* buf) {
@@ -48,10 +55,7 @@ namespace lmongo {
             if (payload_type != 0) {
                 return luaL_error(L, "Unsupported OP_MSG payload type: %d", payload_type);
             }
-            size_t doc_sz;
-            data_len -= MSG_HEADER_LENGTH;
-            uint8_t* doc = buf->data(&doc_sz);
-            if (data_len > doc_sz) {
+            if (data_len - MSG_HEADER_LENGTH > buf->size()) {
                 return luaL_error(L, "Unsupported OP_MSG reply: >1 section");
             }
             lua_pushboolean(L, 1);
